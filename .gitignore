@@ -1,1 +1,4 @@
 msg_log.txt
+*.db
+*.code-workspace
+*__
