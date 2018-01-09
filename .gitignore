@@ -2,3 +2,4 @@ msg_log.txt
 *.db
 *.code-workspace
 *__
+.log
