@@ -3,3 +3,4 @@ msg_log.txt
 *.code-workspace
 *__
 *.log
+store.py
