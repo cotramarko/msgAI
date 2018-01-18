@@ -4,3 +4,4 @@ msg_log.txt
 *__
 *.log
 store.py
+.DS_Store
