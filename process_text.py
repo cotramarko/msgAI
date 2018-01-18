@@ -2,7 +2,13 @@ import numpy as np
 from store import DB
 
 
-def get_vocab(vocab_size=40):
+def get_all_messeges():
+    db = DB()
+    all_messages = db.cursor.execute('SELECT message FROM conversation_history').fetchall()
+    return all_messages
+
+
+def get_vocab(vocab_size=40, return_freq=False):
     db = DB()
     all_messages = db.cursor.execute('SELECT message FROM conversation_history').fetchall()
 
@@ -23,25 +29,32 @@ def get_vocab(vocab_size=40):
     for i in range(vocab_size):
         vocab.append(keys_freq[i])
 
-    return vocab
+    freq = []
+    for key in keys_freq[0:vocab_size]:
+        freq.append(count[key])
+
+    if return_freq:
+        return vocab, freq
+
+    else:
+        return vocab
 
 
-class Char2onehot():
+class Char2num():
     def __init__(self, vocab):
+        self.vocab = vocab
         self.size_of_base_vocab = len(vocab) + 2  # add 2 beacuse of start and stop tokens
-        self.start_token_idx = len(vocab)
-        self.stop_token_idx = len(vocab) + 1
+        self.start_token_num = len(vocab)
+        self.stop_token_num = len(vocab) + 1
         self.char2nbr = self._setup_enc(vocab)
         self.nbr2char = {v: k for k, v in self.char2nbr.items()}
 
     def start_encoding(self):
-        start_encoding = np.zeros((self.size_of_base_vocab))
-        start_encoding[self.start_token_idx] = 1
+        start_encoding = self.start_token_num
         return start_encoding
 
     def stop_encoding(self):
-        stop_encoding = np.zeros((self.size_of_base_vocab))
-        stop_encoding[self.stop_token_idx] = 1
+        stop_encoding = self.stop_token_num
         return stop_encoding
 
     @staticmethod
@@ -53,39 +66,59 @@ class Char2onehot():
 
         return char2nbr
 
-    def onehot(self, sentence):
+    def remove_unknown(self, sentence):
+        sentence = sentence.lower()
+        filtered_sentence = ''
+        for char in sentence:
+            if char in self.vocab:
+                filtered_sentence += char
+
+        return filtered_sentence
+
+    def num(self, sentence):
+        sentence = self.remove_unknown(sentence)
+        # Remove unknown tokens
         sentence_length = len(sentence)
-        sentence_encoding = np.zeros((sentence_length, self.size_of_base_vocab))
+        sentence_encoding = np.zeros((sentence_length))
 
         for (i, char) in enumerate(sentence):
-            print(char)
-            idx = self.char2nbr[char]
-            sentence_encoding[i][idx] = 1
+            nbr = self.char2nbr[char]
+            sentence_encoding[i] = nbr
 
         # add encodings for start and stop tokens
         start_enc = self.start_encoding()
         stop_enc = self.stop_encoding()
-
-        sentence_encoding = np.concatenate(
-            (start_enc[None, :], sentence_encoding, stop_enc[None, :]))
+        sentence_encoding = np.concatenate(([start_enc], sentence_encoding, [stop_enc]))
 
         return sentence_encoding
 
     def sentence(self, encoding):
-        # shape of encoding is (N, D) where N is length of sentence and D is size of onehot dim
+        # shape of encoding is (N, D) where N is length of sentence and D is size of num dim
         sentence = ''
-        for char_encoding in encoding[1:-1, :]:  # ignore start and stop tokens
-            ((nbr, ), ) = np.where(char_encoding == 1)
-            char = self.nbr2char[nbr]
-            sentence += char
+        for char_num in encoding:
+
+            if char_num in self.nbr2char.keys():  # this will make it ignore start and stop tokens
+                char = self.nbr2char[char_num]
+                sentence += char
 
         return sentence
 
 
-vocab = get_vocab()
-print(vocab)
-char2onehot = Char2onehot(vocab)
+if __name__ == '__main__':
+    N = 50
+    (vocab, freq) = get_vocab(N, return_freq=True)
 
-encoding = char2onehot.onehot("hej")
-sentence = char2onehot.sentence(encoding)
-print(sentence)
+    for j in range(N):
+        print('%s | %d' % (vocab[j], freq[j]))
+
+    char2num = Char2num(vocab)
+
+    message = "art"
+    encoding = char2num.num(message)
+    sentence = char2num.sentence(encoding)
+    assert(sentence == message)
+
+    message = "art4"
+    encoding = char2num.num(message)
+    sentence = char2num.sentence(encoding)
+    assert(sentence != message)
